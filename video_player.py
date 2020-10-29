@@ -1,102 +1,114 @@
-#!/usr/bin/env python3
+#! /usr/bin/env python3
 
-import threading
+#Author: David Morales 
+#Course: CS 4375 Theory of Operating Systems
+#Instructor: Dr. Eric Freudenthal
+#T.A: David Pruitt 
+#Assignment: Project 3 
+#Last Modification: 10/28/2020
+#Purpose: Video grayscale 
+
+from threading import Thread, Semaphore
 import cv2
-import numpy as np
-import base64
-import queue
+import time
+import sys
 
-def extractFrames(fileName, outputBuffer, maxFramesToLoad=9999):
-    # Initialize frame count 
-    count = 0
+semaphore = Semaphore()      #Creates the semaphores
+queue_frame_extraction = []  #A list of the frames extracted (will behave as a queue)
+queue_grayscale = []         #A list of the grayscale frames (will behave as a queue)
+frame_count = 0
+queue_limit = 10             #The queue size limit as speficied in the lab requirements.
 
-    # open video file
-    vidcap = cv2.VideoCapture(fileName)
+class extractFrames(Thread): #This method (thread) is a producer of frames for queue_frame_extraction.
+    def __init__(self, filename):
+        Thread.__init__(self)
+        self.filename = filename
+    def run(self):
+        count = 0
+        vidcap = cv2.VideoCapture(self.filename)
+        frame_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))  #Gets total frames of the video
+        success, frame = vidcap.read()                           #Extracts first frame and boolean value (if frame extraction is success)
 
-    # read first image
-    success,image = vidcap.read()
-    
-    print(f'Reading frame {count} {success}')
-    while success and count < maxFramesToLoad:
-        # get a jpg encoded frame
-        success, jpgImage = cv2.imencode('.jpg', image)
+        while True: 
+            if success and len(queue_frame_extraction) <= queue_limit: #Checks if frame extraction is sucess and within the frame limit
+                semaphore.acquire()
+                queue_frame_extraction.append(frame)  #Within the semaphore, we append the frame to the queue
+                semaphore.release()
+                
+                success, frame = vidcap.read() #Continues to extract frames 
+                print("Reading frame:", count)
+                count += 1
 
-        #encode the frame as base 64 to make debugging easier
-        jpgAsText = base64.b64encode(jpgImage)
+            if count >= frame_count: #Once the counter reaches the total frame count... 
+                semaphore.acquire()
+                queue_frame_extraction.append(-1) #We add -1 to the queue to signal the other threads to end work
+                semaphore.release()
+                break
 
-        # add the frame to the buffer
-        outputBuffer.put(image)
-       
-        success,image = vidcap.read()
-        print(f'Reading frame {count} {success}')
-        count += 1
+        return
 
-    print('Frame extraction complete')
+class convertToGrayscale(Thread): #This method (thread) is a consumer of frames (from queue_frame_extraction) and a producer of grayscale frames
+    def __init__(self):
+        Thread.__init__(self)
 
+    def run(self):
+        count = 0
 
-def displayFrames(inputBuffer):
-    # initialize frame count
-    count = 0
+        while True:
+            if len(queue_frame_extraction) > 0 and len(queue_grayscale) <= queue_limit: #Checks if there's frames in the queue and within the limit
+                semaphore.acquire()
+                frame = queue_frame_extraction.pop(0)  #Pops a frame from the queue within the semaphore
+                semaphore.release()
 
-    # go through each frame in the buffer until the buffer is empty
-    while not inputBuffer.empty():
-        # get the next frame
-        frame = inputBuffer.get()
+                if type(frame) == int and frame == -1: #Checks frame is -1 to indicate to stop work (exit the loop)
+                    semaphore.acquire()
+                    queue_grayscale.append(-1)         #Adds -1 to queue_grayscale to signal the other thread to end work
+                    semaphore.release()
+                    break
 
-        print(f'Displaying frame {count}')        
+                print("Converting frame:", count)
+                grayscale_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) #Converts frame to grayscale
+                semaphore.acquire()
+                queue_grayscale.append(grayscale_frame)                   #Adds grayscale frame to the queue within the semaphore
+                semaphore.release()
 
-        # display the image in a window called "video" and wait 42ms
-        # before displaying the next frame
-        cv2.imshow('Video', frame)
-        if cv2.waitKey(42) and 0xFF == ord("q"):
-            break
+                count += 1
 
-        count += 1
+        return
 
-    print('Finished displaying all frames')
-    # cleanup the windows
-    cv2.destroyAllWindows()
-def convertToGrayscale():
-    # globals
-    outputDir    = 'frames'
-    # initialize frame count
-    count = 0
-    # get the next frame file name
-    inFileName = f'{outputDir}/frame_{count:04d}.bmp'
+class displayFrames(Thread): #This method (thread) is a consumer of frames (from queue_grayscale)
+    def __init__(self):
+        Thread.__init__(self)
+        self.delay = 42      #Sets the delay for 42ms as specified in lab requirements
 
-    # load the next file
-    inputFrame = cv2.imread(inFileName, cv2.IMREAD_COLOR)
-    while inputFrame is not None and count < 72:
-        print(f'Converting frame {count}')
+    def run(self):
+        count = 0
 
-        # convert the image to grayscale
-        grayscaleFrame = cv2.cvtColor(inputFrame, cv2.COLOR_BGR2GRAY)
-        
-        # generate output file name
-        outFileName = f'{outputDir}/grayscale_{count:04d}.bmp'
+        while True:
+            if len(queue_grayscale) > 0:               #Checks if frames in the queue 
+                semaphore.acquire()
+                frame = queue_grayscale.pop(0)
+                semaphore.release()
 
-        # write output file
-        cv2.imwrite(outFileName, grayscaleFrame)
+                if type(frame) == int and frame == -1: #Checks frame is -1 to indicate to stop work (exit the loop)
+                    break
 
-        count += 1
+                print("Displaying frame:", count)
+                cv2.imshow('Video', frame)             #Displays frame in GUI
+                count += 1
 
-        # generate input file name for the next frame
-        inFileName = f'{outputDir}/frame_{count:04d}.bmp'
-        
-        # load the next frame
-        inputFrame = cv2.imread(inFileName, cv2.IMREAD_COLOR)
+                if cv2.waitKey(self.delay) and 0xFF == ord("q"): #Waits for 42 ms and check if the user wants to quit
+                    break
 
-def main():
-    # filename of clip to load
-    filename = 'clip.mp4'
+        cv2.destroyAllWindows()                                  #Exits and clean up
+        return
 
-    # shared queue  
-    extractionQueue = queue.Queue()
+filename = str(sys.argv[1]) #Gets filename of video file from command line argument
 
-    # extract the frames
-    extractFrames(filename,extractionQueue, 72)
-
-    # display the frames
-    displayFrames(extractionQueue)
-
-main()
+#Runs all the threads to begin comsumer/producer frame conversion to grayscale
+extract_frames = extractFrames(filename)
+extract_frames.start()
+convert_frames = convertToGrayscale()
+convert_frames.start()
+display_frames = displayFrames()
+display_frames.start()
