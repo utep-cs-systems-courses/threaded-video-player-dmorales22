@@ -1,19 +1,20 @@
 #! /usr/bin/env python3
 
-#Author: David Morales 
+#Author: David Morales
 #Course: CS 4375 Theory of Operating Systems
 #Instructor: Dr. Eric Freudenthal
-#T.A: David Pruitt 
-#Assignment: Project 3 
+#T.A: David Pruitt
+#Assignment: Project 3
 #Last Modification: 10/28/2020
-#Purpose: Video grayscale 
+#Purpose: Video grayscale
 
 from threading import Thread, Semaphore
 import cv2
 import time
 import sys
+import os.path
 
-semaphore = Semaphore()      #Creates the semaphores
+semaphore = Semaphore(2)     #Creates the semaphores
 queue_frame_extraction = []  #A list of the frames extracted (will behave as a queue)
 queue_grayscale = []         #A list of the grayscale frames (will behave as a queue)
 frame_count = 0
@@ -30,18 +31,18 @@ class extractFrames(Thread): #This method (thread) is a producer of frames for q
         success, frame = vidcap.read()                           #Extracts first frame and boolean value (if frame extraction is success)
 
         while True: 
-            if success and len(queue_frame_extraction) <= queue_limit: #Checks if frame extraction is sucess and within the frame limit
+            if success and len(queue_frame_extraction) < queue_limit:  #Checks if frame extraction is sucess and within the frame limit
                 semaphore.acquire()
-                queue_frame_extraction.append(frame)  #Within the semaphore, we append the frame to the queue
+                queue_frame_extraction.append(frame)                   #Within the semaphore, we append the frame to the queue
                 semaphore.release()
                 
-                success, frame = vidcap.read() #Continues to extract frames 
+                success, frame = vidcap.read()                         #Continues to extract frames
                 print("Reading frame:", count)
                 count += 1
 
-            if count >= frame_count: #Once the counter reaches the total frame count... 
+            if count >= frame_count:               #Once the counter reaches the total frame count...
                 semaphore.acquire()
-                queue_frame_extraction.append(-1) #We add -1 to the queue to signal the other threads to end work
+                queue_frame_extraction.append(-1)  #We add -1 to the queue to signal the other threads to end work
                 semaphore.release()
                 break
 
@@ -55,7 +56,7 @@ class convertToGrayscale(Thread): #This method (thread) is a consumer of frames 
         count = 0
 
         while True:
-            if len(queue_frame_extraction) > 0 and len(queue_grayscale) <= queue_limit: #Checks if there's frames in the queue and within the limit
+            if len(queue_frame_extraction) > 0 and len(queue_grayscale) < queue_limit: #Checks if there's frames in the queue and within the limit
                 semaphore.acquire()
                 frame = queue_frame_extraction.pop(0)  #Pops a frame from the queue within the semaphore
                 semaphore.release()
@@ -85,7 +86,7 @@ class displayFrames(Thread): #This method (thread) is a consumer of frames (from
         count = 0
 
         while True:
-            if len(queue_grayscale) > 0:               #Checks if frames in the queue 
+            if len(queue_grayscale) > 0:               #Checks if frames in the queue
                 semaphore.acquire()
                 frame = queue_grayscale.pop(0)
                 semaphore.release()
@@ -94,7 +95,7 @@ class displayFrames(Thread): #This method (thread) is a consumer of frames (from
                     break
 
                 print("Displaying frame:", count)
-                cv2.imshow('Video', frame)             #Displays frame in GUI
+                cv2.imshow('Video', frame)                       #Displays frame in GUI
                 count += 1
 
                 if cv2.waitKey(self.delay) and 0xFF == ord("q"): #Waits for 42 ms and check if the user wants to quit
@@ -102,6 +103,10 @@ class displayFrames(Thread): #This method (thread) is a consumer of frames (from
 
         cv2.destroyAllWindows()                                  #Exits and clean up
         return
+
+if len(sys.argv) < 2 or os.path.isfile(str(sys.argv[1])) == False:  #Just checks user usage
+    print("Video file not found or incorrect input. Example: python3 video_player.py filename ")
+    sys.exit(0)
 
 filename = str(sys.argv[1]) #Gets filename of video file from command line argument
 

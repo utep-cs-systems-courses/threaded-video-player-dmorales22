@@ -18,6 +18,17 @@ use the follwing commands (note that ordering is important):
     sudo pip install --upgrade pip
     sudo pip install opencv-python
 
+## Threaded Video Player
+The video player `video_player.py` takes in a video file, converts the frames into grayscale using threading (producer/consumer system),
+and displays it. This is designed to work only in Unix/Linux systems with the proper dependencies installed and X server running. 
+This is program is based off the demo code (in the `demo` folder) provided by Dr. Eric Freudenthal. This is a Python 3 program. 
+
+### Usage 
+To run this program just type in the command line:
+`python video_player.py videoname.mp4` or `python3 video_player.py videoname.mp4`
+
+#Lab Requirements 
+
 ## Allowed libraries
 The purpose of this lab is to implement and use a producer-consumer system.
 Python already has several synchronized bounded buffers and queues available 
@@ -61,6 +72,4 @@ them in sequence
   * Producer/consumer qeueus must be bounded at ten frames
 
 Note: You may have ancillary objects and method in order to make you're code easer to understand and implement.
-
-
 
