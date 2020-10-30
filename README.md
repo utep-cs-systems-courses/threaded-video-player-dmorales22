@@ -27,7 +27,6 @@ This is program is based off the demo code (in the `demo` folder) provided by Dr
 To run this program just type in the command line:
 `python video_player.py videoname.mp4` or `python3 video_player.py videoname.mp4`
 
-#Lab Requirements 
 
 ## Allowed libraries
 The purpose of this lab is to implement and use a producer-consumer system.
