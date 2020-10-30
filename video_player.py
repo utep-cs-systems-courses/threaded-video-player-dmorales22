@@ -5,8 +5,8 @@
 #Instructor: Dr. Eric Freudenthal
 #T.A: David Pruitt
 #Assignment: Project 3
-#Last Modification: 10/28/2020
-#Purpose: Video grayscale
+#Last Modification: 10/30/2020
+#Purpose: Video to grayscale
 
 from threading import Thread, Semaphore
 import cv2
@@ -14,7 +14,7 @@ import time
 import sys
 import os.path
 
-semaphore = Semaphore(2)     #Creates the semaphores
+semaphore = Semaphore()     #Creates the semaphores
 queue_frame_extraction = []  #A list of the frames extracted (will behave as a queue)
 queue_grayscale = []         #A list of the grayscale frames (will behave as a queue)
 frame_count = 0
@@ -86,12 +86,12 @@ class displayFrames(Thread): #This method (thread) is a consumer of frames (from
         count = 0
 
         while True:
-            if len(queue_grayscale) > 0:               #Checks if frames in the queue
+            if len(queue_grayscale) > 0:                         #Checks if frames in the queue
                 semaphore.acquire()
                 frame = queue_grayscale.pop(0)
                 semaphore.release()
 
-                if type(frame) == int and frame == -1: #Checks frame is -1 to indicate to stop work (exit the loop)
+                if type(frame) == int and frame == -1:           #Checks frame is -1 to indicate to stop work (exit the loop)
                     break
 
                 print("Displaying frame:", count)
