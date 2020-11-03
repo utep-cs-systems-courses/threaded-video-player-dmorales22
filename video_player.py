@@ -17,27 +17,27 @@ import os.path
 frame_count = 0
 queue_limit = 10             #The queue size limit as specified in the lab requirements.
 
-class ThreadQueue:           #Created new class to handle the thread operations (based off of notes)
+class ThreadQueue:           #Created new class to handle the thread put/get operations from the queue (based off of notes)
     def __init__(self, queue_limit):
         self.queue = []                         #Using lists to behave as queues 
-        self.lock = Lock()
+        self.qlock = Lock()
         self.full = Semaphore(0)
         self.empty = Semaphore(queue_limit)     #Creates semaphore with queue_limit.
 
 
     def put(self, frame):                       #Puts new frames onto the queue
         self.empty.acquire()
-        self.lock.acquire()
+        self.qlock.acquire()
         self.queue.append(frame)                #Appends (enqueue) frame onto lists
-        self.lock.release()
+        self.qlock.release()
         self.full.release()
 
 
     def get(self):                              #Pops frames from the queue
         self.full.acquire()
-        self.lock.acquire()
+        self.qlock.acquire()
         frame = self.queue.pop(0)
-        self.lock.release()
+        self.qlock.release()
         self.empty.release()
         return frame                            #Returns frame
 
